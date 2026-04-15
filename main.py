@@ -1,10 +1,10 @@
 import os, json, time, threading, websocket
 from flask import Flask
 
-# --- FLASK WEB SERVER (Persistence) ---
+# --- FLASK WEB SERVER (Railway Persistence) ---
 app = Flask('')
 @app.route('/')
-def home(): return "🛰️ Dual Sentinel Lock: Active"
+def home(): return "🛰️ Sentinel Dual-Lock: Active"
 
 def run_web():
     port = int(os.environ.get("PORT", 8080))
@@ -14,7 +14,7 @@ def run_web():
 GUILD_ID = "777271906486976512"
 CHANNEL_ID = "1487672527370322132"
 
-# Token Dictionary
+# Token Dictionary (Ensure TOKEN_ONE and TOKEN_TWO are in Railway)
 tokens = {
     "Sentinel 1": os.getenv("TOKEN_ONE"),
     "Sentinel 2": os.getenv("TOKEN_TWO")
@@ -22,25 +22,25 @@ tokens = {
 
 def vc_locker(token, name):
     if not token:
-        print(f"⚠️ {name} token missing. Skipping...")
+        print(f"⚠️ {name} token missing.")
         return
 
     while True:
         try:
             ws = websocket.WebSocket()
-            ws.connect('wss://gateway.discord.gg/?v=9&encoding=json')
+            ws.connect('wss://gateway.discord.gg/?v=9&encoding=json', timeout=15)
             
-            # 1. IDENTIFY
+            # 1. IDENTIFY (Using Desktop properties for better Stream support)
             ws.send(json.dumps({
                 "op": 2, 
                 "d": {
                     "token": token.strip(), 
-                    "properties": {"$os": "linux", "$browser": "Chrome", "$device": "pc"},
+                    "properties": {"$os": "windows", "$browser": "Chrome", "$device": ""},
                     "presence": {"status": "online", "afk": False}
                 }
             }))
 
-            # Join Payload
+            # JOIN PAYLOAD: Targeting Camera (self_video) and Live Badge (self_stream)
             join_payload = {
                 "op": 4, 
                 "d": {
@@ -49,7 +49,7 @@ def vc_locker(token, name):
                     "self_mute": False, 
                     "self_deaf": False,
                     "self_video": True,
-                    "self_live_screan": True
+                    "self_stream": True
                 }
             }
 
@@ -65,44 +65,47 @@ def vc_locker(token, name):
                 t = data.get('t')
                 d = data.get('d')
 
-                # Initial Join on Hello
+                # Join VC immediately upon connection
                 if op == 10:
                     ws.send(json.dumps(join_payload))
 
-                # Capture ID to identify "Moves"
                 if t == "READY":
                     user_id = d['user']['id']
-                    print(f"✅ {name} Logged in as {d['user']['username']}")
+                    print(f"✅ {name} connected as {d['user']['username']}")
 
-                # --- INSTANT REJOIN LOGIC ---
+                # --- INSTANT REJOIN LOGIC (3s delay) ---
                 if t == "VOICE_STATE_UPDATE":
                     if d.get('user_id') == user_id:
                         if d.get('channel_id') != CHANNEL_ID:
-                            print(f"🔄 {name} Move/Disconnect! Rejoining in 3s...")
+                            print(f"🔄 {name} was moved/disconnected. Rejoining in 3s...")
                             time.sleep(3)
                             ws.send(json.dumps(join_payload))
 
-                # Keep Connection Alive
+                # --- HEARTBEAT & BADGE REFRESH ---
                 if time.time() - last_heartbeat > 30:
                     ws.send(json.dumps({"op": 1, "d": data.get('s')}))
+                    # Re-send join payload to refresh the "Live" and "Camera" icons
+                    ws.send(json.dumps(join_payload)) 
                     last_heartbeat = time.time()
 
         except Exception as e:
-            print(f"⚠️ {name} instability: {e}. Reconnecting in 5s...")
-            time.sleep(5)
+            print(f"⚠️ {name} connection error: {e}. Reconnecting in 10s...")
+            time.sleep(10)
 
 if __name__ == "__main__":
-    # Start the "Keep Alive" server
+    # Start persistence server
     threading.Thread(target=run_web, daemon=True).start()
     
     print(f"🚀 Dual Lock active for Channel: {CHANNEL_ID}")
     
     threads = []
     for name, token in tokens.items():
-        t = threading.Thread(target=vc_locker, args=(token, name))
-        t.start()
-        threads.append(t)
-        time.sleep(5) # Staggered startup
+        if token:
+            t = threading.Thread(target=vc_locker, args=(token, name))
+            t.start()
+            threads.append(t)
+            time.sleep(8) # Staggered join to stay safe
 
     for t in threads:
         t.join()
+        
