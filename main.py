@@ -49,7 +49,7 @@ def vc_locker(token, name):
                     "self_mute": False, 
                     "self_deaf": False,
                     "self_video": True,
-                    "self_screan": True
+                    "self_live_screan": True
                 }
             }
 
