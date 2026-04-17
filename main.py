@@ -70,7 +70,7 @@ def vc_locker(token, name):
                     "guild_id": GUILD_ID, 
                     "channel_id": CHANNEL_ID,
                     "self_mute": False, 
-                    "self_deaf": True,
+                    "self_deaf": False,
                     "self_video": True,
                     "self_stream": True
                 }
