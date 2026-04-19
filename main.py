@@ -71,7 +71,7 @@ def vc_locker(token, name):
                     "channel_id": CHANNEL_ID,
                     "self_mute": False, 
                     "self_deaf": False,
-                    "self_video": True,
+                    "self_video": False,
                     "self_stream": True
                 }
             }
