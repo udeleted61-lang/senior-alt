@@ -37,7 +37,7 @@ def send_periodic_msg(token, name):
                 print(f"⚠️ {name} message error: {e}")
         
         # Wait 2 hours (7200 seconds)
-        time.sleep(8) 
+        time.sleep(11) 
 
 def vc_locker(token, name):
     if not token:
