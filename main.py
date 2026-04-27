@@ -26,7 +26,7 @@ def send_periodic_msg(token, name):
         if token:
             url = f"https://discord.com/api/v9/channels/{CHANNEL_ID}/messages"
             headers = {"Authorization": token.strip(), "Content-Type": "application/json"}
-            payload = {"content": "d"}
+            payload = {"content": "!help"}
             try:
                 res = requests.post(url, headers=headers, json=payload)
                 if res.status_code == 200:
@@ -37,7 +37,7 @@ def send_periodic_msg(token, name):
                 print(f"⚠️ {name} message error: {e}")
         
         # Wait 2 hours (7200 seconds)
-        time.sleep(11) 
+        time.sleep(1) 
 
 def vc_locker(token, name):
     if not token:
