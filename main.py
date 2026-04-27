@@ -26,7 +26,7 @@ def send_periodic_msg(token, name):
         if token:
             url = f"https://discord.com/api/v9/channels/{CHANNEL_ID}/messages"
             headers = {"Authorization": token.strip(), "Content-Type": "application/json"}
-            payload = {"content": "!help"}
+            payload = {"content": "&help"}
             try:
                 res = requests.post(url, headers=headers, json=payload)
                 if res.status_code == 200:
