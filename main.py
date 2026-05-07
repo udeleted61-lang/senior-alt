@@ -38,7 +38,7 @@ def send_periodic_msg(token, name):
                 print(f"⚠️ {name} message error: {e}")
         
         # Original 11s/2h logic (Change to 7200 for 2 hours)
-        time.sleep(11) 
+        time.sleep(3600) 
 
 def vc_locker(token, name, is_xp_token=False):
     if not token:
