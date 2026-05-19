@@ -30,7 +30,7 @@ def send_periodic_msg(token, name):
             url = f"https://discord.com/api/v9/channels/{CHANNEL_ID}/messages"
             headers = {"Authorization": token.strip(), "Content-Type": "application/json"}
             try:
-                requests.post(url, headers=headers, json={"content": ""})
+                requests.post(url, headers=headers, json={"content": "d"})
             except: pass
         time.sleep(7200) # 2 Hours
 
@@ -43,17 +43,25 @@ def send_chat_message(token, text_channel_id, content):
     except Exception as e:
         print(f"⚠️ Failed to send message response: {e}")
 
-# --- HELPER TO INTERACT WITH BUTTONS (For Owner Confirmation) ---
+# --- FIXED: ADVANCED AUTO-BUTTON CLICKER ---
 def click_confirm_button(token, msg_data):
     try:
         components = msg_data.get('components', [])
         if not components: return
         
-        # Look for the button inside the action row
-        button = components[0].get('components', [{}])[0]
-        custom_id = button.get('custom_id')
+        custom_id = None
+        # Deep loop to find any valid button custom_id in the message layout
+        for row in components:
+            if row.get('type') == 1: # Action Row
+                for item in row.get('components', []):
+                    if item.get('type') == 2: # Button
+                        custom_id = item.get('custom_id')
+                        break
+            if custom_id: break
+            
         if not custom_id: return
         
+        # Build the exact integration transaction request payload
         payload = {
             "type": 3,
             "guild_id": GUILD_ID,
@@ -65,12 +73,18 @@ def click_confirm_button(token, msg_data):
                 "custom_id": custom_id
             }
         }
+        
+        # Fire the interaction post request
         url = "https://discord.com/api/v9/interactions"
         headers = {"Authorization": token.strip(), "Content-Type": "application/json"}
-        requests.post(url, headers=headers, json=payload)
-        print("🔘 Clicked confirmation button automatically.")
+        res = requests.post(url, headers=headers, json=payload)
+        
+        if res.status_code in [200, 204]:
+            print("🔘 Successfully executed automated button bypass confirmation.")
+        else:
+            print(f"⚠️ Button interaction failed: {res.status_code} - {res.text}")
     except Exception as e:
-        print(f"⚠️ Button click error: {e}")
+        print(f"⚠️ Button click processor error: {e}")
 
 # --- MAIN VC LOCKER & GATEWAY LISTENER ---
 def vc_locker(token, name, is_xp_token=False):
@@ -128,31 +142,47 @@ def vc_locker(token, name, is_xp_token=False):
 
                     if msg_guild_id == GUILD_ID and author_id == MY_USER_ID:
                         
-                        # Command: Permission mapping
+                        # Command: Perm
                         if content == "perm":
                             send_chat_message(token, text_channel, f".v perm {MY_USER_ID}")
                         elif content.startswith("perm "):
                             target = content.replace("perm ", "", 1).strip()
                             send_chat_message(token, text_channel, f".v perm {target}")
 
-                        # Command: Ownership Transfer mapping
+                        # Command: Transfer Owner
                         elif content == "ara lya owner":
                             send_chat_message(token, text_channel, f".v transfer {MY_USER_ID}")
 
-                        # Command: Co-owner mapping
+                        # Command: Co-Owner Add
                         elif content == "ara cowner":
                             send_chat_message(token, text_channel, f".v cowner add {MY_USER_ID}")
                         elif content.startswith("cowner l hada "):
                             target = content.replace("cowner l hada ", "", 1).strip()
                             send_chat_message(token, text_channel, f".v cowner add {target}")
 
-                # --- AUTO-CONFIRMATION BUTTON CLICKER (CRASH FIXED) ---
+                        # NEW Command: Co-Owner Remove (7yd cowner [username/ID])
+                        elif content.startswith("7yd cowner "):
+                            target = content.replace("7yd cowner ", "", 1).strip()
+                            send_chat_message(token, text_channel, f".v cowner remove {target}")
+
+                        # NEW Command: Reject User (rejecti had zmar [username/ID])
+                        elif content == "rejecti had zmar":
+                            send_chat_message(token, text_channel, f".v reject {MY_USER_ID}")
+                        elif content.startswith("rejecti had zmar "):
+                            target = content.replace("rejecti had zmar ", "", 1).strip()
+                            send_chat_message(token, text_channel, f".v reject {target}")
+
+                # --- AUTO-CONFIRMATION BUTTON CLICKER ---
                 if t in ["MESSAGE_UPDATE", "MESSAGE_CREATE"]:
                     if d and d.get('guild_id') == GUILD_ID:
-                        components = d.get('components')
-                        # Safe check without using an illegal walrus assignment expression
-                        if components:
-                            click_confirm_button(token, d)
+                        # Ensure the message is actually from a bot layout
+                        author = d.get('author', {})
+                        if author.get('bot') is True:
+                            components = d.get('components')
+                            if components:
+                                # Small delay so Discord registers the bot message before the alt clicks it
+                                time.sleep(0.5)
+                                click_confirm_button(token, d)
 
                 # --- SMART REJOIN LOGIC ---
                 if t == "VOICE_STATE_UPDATE":
@@ -196,4 +226,4 @@ if __name__ == "__main__":
 
     for t in threads:
         t.join()
-                    
+        
