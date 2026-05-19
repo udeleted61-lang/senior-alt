@@ -4,19 +4,17 @@ from flask import Flask
 # --- FLASK WEB SERVER ---
 app = Flask('')
 @app.route('/')
-def home(): return "🛰️ Sentinel Remote-Control: Active"
+def home(): return "🛰️ Sentinel XP-Lock: Active"
 
 def run_web():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-# --- CONFIGURATION ---
+# --- CONFIG ---
 GUILD_ID = os.getenv("GUILD")
 CHANNEL_ID = os.getenv("CHANNEL")
 
-# YOUR DISCORD USER ID (Only requests from this ID will trigger commands)
-MY_USER_ID = "1404189983807639672" 
-
+# Added TOKEN_XP to the dictionary
 tokens = {
     "Sentinel 1": os.getenv("TOKEN_ONE"),
     "Sentinel 2": os.getenv("TOKEN_TWO"),
@@ -29,52 +27,23 @@ def send_periodic_msg(token, name):
         if token:
             url = f"https://discord.com/api/v9/channels/{CHANNEL_ID}/messages"
             headers = {"Authorization": token.strip(), "Content-Type": "application/json"}
+            payload = {"content": ""}
             try:
-                requests.post(url, headers=headers, json={"content": ""})
-            except: pass
-        time.sleep(7200) # 2 Hours
-
-# --- HELPER TO SEND TEXT RESPONSES ---
-def send_chat_message(token, text_channel_id, content):
-    url = f"https://discord.com/api/v9/channels/{text_channel_id}/messages"
-    headers = {"Authorization": token.strip(), "Content-Type": "application/json"}
-    try:
-        requests.post(url, headers=headers, json={"content": content})
-    except Exception as e:
-        print(f"⚠️ Failed to send message response: {e}")
-
-# --- HELPER TO INTERACT WITH BUTTONS (For Owner Confirmation) ---
-def click_confirm_button(token, msg_data):
-    # Extracts necessary metadata from the bot's interactive response to click "Continue"
-    try:
-        components = msg_data.get('components', [])
-        if not components: return
+                res = requests.post(url, headers=headers, json=payload)
+                if res.status_code == 200:
+                    print(f"📅 Message 'd' sent by {name}.")
+                else:
+                    print(f"⚠️ {name} failed: {res.status_code}")
+            except Exception as e:
+                print(f"⚠️ {name} message error: {e}")
         
-        # Look for the button inside the action row
-        button = components[0].get('components', [{}])[0]
-        custom_id = button.get('custom_id')
-        
-        payload = {
-            "type": 3,
-            "guild_id": GUILD_ID,
-            "channel_id": msg_data['channel_id'],
-            "message_id": msg_data['id'],
-            "application_id": msg_data['author']['id'],
-            "data": {
-                "component_type": 2,
-                "custom_id": custom_id
-            }
-        }
-        url = "https://discord.com/api/v9/interactions"
-        headers = {"Authorization": token.strip(), "Content-Type": "application/json"}
-        requests.post(url, headers=headers, json=payload)
-        print("🔘 Clicked confirmation button automatically.")
-    except Exception as e:
-        print(f"⚠️ Button click error: {e}")
+        # Original 11s/2h logic (Change to 7200 for 2 hours)
+        time.sleep(3600) 
 
-# --- MAIN VC LOCKER & GATEWAY LISTENER ---
 def vc_locker(token, name, is_xp_token=False):
-    if not token: return
+    if not token:
+        print(f"⚠️ {name} token missing.")
+        return
 
     while True:
         try:
@@ -93,7 +62,8 @@ def vc_locker(token, name, is_xp_token=False):
             join_payload = {
                 "op": 4, 
                 "d": {
-                    "guild_id": GUILD_ID, "channel_id": CHANNEL_ID,
+                    "guild_id": GUILD_ID, 
+                    "channel_id": CHANNEL_ID,
                     "self_mute": False, "self_deaf": False,
                     "self_video": False, "self_stream": True
                 }
@@ -108,77 +78,38 @@ def vc_locker(token, name, is_xp_token=False):
                 if not msg: break
                 data = json.loads(msg)
                 
-                op = data.get('op')
-                t = data.get('t')
-                d = data.get('d')
-
-                if op == 10:
+                if data.get('op') == 10:
                     ws.send(json.dumps(join_payload))
 
-                if t == "READY":
-                    user_id = d['user']['id']
+                if data.get('t') == "READY":
+                    user_id = data['d']['user']['id']
                     print(f"✅ {name} connected.")
 
-                # --- REMOTE CONTROL DISPATCHER ---
-                if t == "MESSAGE_CREATE":
-                    author_id = d.get('author', {}).get('id')
-                    content = d.get('content', '').strip()
-                    text_channel = d.get('channel_id')
-                    msg_guild_id = d.get('guild_id')
+                # --- THE WAVY XP LOGIC ---
+                # Only runs if this is the TOKEN_XP slot
+                if is_xp_token and (time.time() - last_dice_roll > 60):
+                    if random.randint(1, 400) == 77:
+                        print(f"📉 {name}: Disconnecting for wavy line XP.")
+                        break # Break out to trigger the 7-min sleep
+                    last_dice_roll = time.time()
 
-                    # 1. Make sure message is from the right server and from YOU
-                    if msg_guild_id == GUILD_ID and author_id == MY_USER_ID:
-                        
-                        # Command: Permission mapping
-                        if content == "perm":
-                            send_chat_message(token, text_channel, f".v perm {MY_USER_ID}")
-                        elif content.startswith("perm "):
-                            target = content.replace("perm ", "", 1).strip()
-                            send_chat_message(token, text_channel, f".v perm {target}")
-
-                        # Command: Ownership Transfer mapping
-                        elif content == "ara lya owner":
-                            send_chat_message(token, text_channel, f".v transfer {MY_USER_ID}")
-
-                        # Command: Co-owner mapping
-                        elif content == "ara cowner":
-                            send_chat_message(token, text_channel, f".v cowner add {MY_USER_ID}")
-                        elif content.startswith("cowner l hada "):
-                            target = content.replace("cowner l hada ", "", 1).strip()
-                            send_chat_message(token, text_channel, f".v cowner add {target}")
-
-                # --- AUTO-CONFIRMATION BUTTON CLICKER ---
-                if t == "MESSAGE_UPDATE" or t == "MESSAGE_CREATE":
-                    # Looks for verification or confirmation embeds from the voice bot
-                    author = d.get('author', {})
-                    # If an interaction/button message pops up following our transfer request
-                    if d.get('guild_id') == GUILD_ID and components := d.get('components'):
-                        # Optional safety filter: Only interact if button contains "continue" or "confirm" clues
-                        click_confirm_button(token, d)
-
-                # --- SMART REJOIN LOGIC ---
-                if t == "VOICE_STATE_UPDATE":
-                    if d.get('user_id') == user_id:
-                        new_channel = d.get('channel_id')
-                        if new_channel is None: # Kicked
+                if data.get('t') == "VOICE_STATE_UPDATE":
+                    if data['d'].get('user_id') == user_id:
+                        if data['d'].get('channel_id') != CHANNEL_ID:
                             time.sleep(1)
                             ws.send(json.dumps(join_payload))
 
-                # --- WAVY XP LOGIC ---
-                if is_xp_token and (time.time() - last_dice_roll > 60):
-                    if random.randint(1, 400) == 77:
-                        break 
-                    last_dice_roll = time.time()
-
                 if time.time() - last_heartbeat > 30:
                     ws.send(json.dumps({"op": 1, "d": data.get('s')}))
+                    ws.send(json.dumps(join_payload)) 
                     last_heartbeat = time.time()
 
             ws.close()
             if is_xp_token:
+                # Random 7 minute gap for the wavy line
                 time.sleep(random.randint(400, 450))
 
-        except Exception:
+        except Exception as e:
             time.sleep(10)
 
 if __name__ == "__main__":
@@ -187,13 +118,16 @@ if __name__ == "__main__":
     threads = []
     for name, token in tokens.items():
         if token:
+            # Check if this is the XP token to apply the disconnect logic
             is_xp = (name == "Sentinel XP")
+            
             vt = threading.Thread(target=vc_locker, args=(token, name, is_xp))
             vt.start()
             threads.append(vt)
             
             mt = threading.Thread(target=send_periodic_msg, args=(token, name), daemon=True)
             mt.start()
+            
             time.sleep(5) 
 
     for t in threads:
