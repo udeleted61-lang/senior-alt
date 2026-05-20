@@ -30,7 +30,7 @@ def send_periodic_msg(token, name):
             url = f"https://discord.com/api/v9/channels/{CHANNEL_ID}/messages"
             headers = {"Authorization": token.strip(), "Content-Type": "application/json"}
             try:
-                requests.post(url, headers=headers, json={"content": ""})
+                requests.post(url, headers=headers, json={"content": "nigga"})
             except: pass
         time.sleep(7200) # 2 Hours
 
