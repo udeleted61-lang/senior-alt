@@ -23,6 +23,9 @@ tokens = {
     "Sentinel XP": os.getenv("TOKEN_XP") 
 }
 
+# Live registry to hold active Gateway session IDs for authorized interactions
+session_registry = {}
+
 # --- 2-HOUR MESSAGE FUNCTION ---
 def send_periodic_msg(token, name):
     while True:
@@ -30,9 +33,9 @@ def send_periodic_msg(token, name):
             url = f"https://discord.com/api/v9/channels/{CHANNEL_ID}/messages"
             headers = {"Authorization": token.strip(), "Content-Type": "application/json"}
             try:
-                requests.post(url, headers=headers, json={"content": ""})
+                requests.post(url, headers=headers, json={"content": "d"})
             except: pass
-        time.sleep(67) # 2 Hours
+        time.sleep(7200) # 2 Hours
 
 # --- HELPER TO SEND TEXT RESPONSES ---
 def send_chat_message(token, text_channel_id, content):
@@ -43,8 +46,8 @@ def send_chat_message(token, text_channel_id, content):
     except Exception as e:
         print(f"⚠️ Failed to send message response: {e}")
 
-# --- FIXED: ADVANCED AUTO-BUTTON CLICKER ---
-def click_confirm_button(token, msg_data):
+# --- FIXED: BUTTON CLICKER WITH LIVE SESSION IDS ---
+def click_confirm_button(token, msg_data, name):
     try:
         components = msg_data.get('components', [])
         if not components: return
@@ -61,28 +64,30 @@ def click_confirm_button(token, msg_data):
             
         if not custom_id: return
         
-        # Build the exact integration transaction request payload
+        # Pull the live session ID needed to prevent the 400 error shown in logs
+        current_session = session_registry.get(name, "session_id_fallback")
+        
         payload = {
             "type": 3,
             "guild_id": GUILD_ID,
             "channel_id": msg_data['channel_id'],
             "message_id": msg_data['id'],
             "application_id": msg_data['author']['id'],
+            "session_id": current_session, # Fixed: Passes validation token check
             "data": {
                 "component_type": 2,
                 "custom_id": custom_id
             }
         }
         
-        # Fire the interaction post request
         url = "https://discord.com/api/v9/interactions"
         headers = {"Authorization": token.strip(), "Content-Type": "application/json"}
         res = requests.post(url, headers=headers, json=payload)
         
         if res.status_code in [200, 204]:
-            print("🔘 Successfully executed automated button bypass confirmation.")
+            print(f"🔘 {name}: Successfully executed automated button bypass confirmation.")
         else:
-            print(f"⚠️ Button interaction failed: {res.status_code} - {res.text}")
+            print(f"⚠️ {name}: Button interaction failed: {res.status_code} - {res.text}")
     except Exception as e:
         print(f"⚠️ Button click processor error: {e}")
 
@@ -131,6 +136,8 @@ def vc_locker(token, name, is_xp_token=False):
 
                 if t == "READY":
                     user_id = d['user']['id']
+                    # Dynamically catch and link the authorization session string
+                    session_registry[name] = d.get('session_id')
                     print(f"✅ {name} connected.")
 
                 # --- REMOTE CONTROL DISPATCHER ---
@@ -160,12 +167,12 @@ def vc_locker(token, name, is_xp_token=False):
                             target = content.replace("cowner l hada ", "", 1).strip()
                             send_chat_message(token, text_channel, f".v cowner add {target}")
 
-                        # NEW Command: Co-Owner Remove (7yd cowner [username/ID])
+                        # Command: Co-Owner Remove (7yd cowner [username/ID])
                         elif content.startswith("7yd cowner "):
                             target = content.replace("7yd cowner ", "", 1).strip()
                             send_chat_message(token, text_channel, f".v cowner remove {target}")
 
-                        # NEW Command: Reject User (rejecti had zmar [username/ID])
+                        # Command: Reject User (rejecti had zmar [username/ID])
                         elif content == "rejecti had zmar":
                             send_chat_message(token, text_channel, f".v reject {MY_USER_ID}")
                         elif content.startswith("rejecti had zmar "):
@@ -175,14 +182,12 @@ def vc_locker(token, name, is_xp_token=False):
                 # --- AUTO-CONFIRMATION BUTTON CLICKER ---
                 if t in ["MESSAGE_UPDATE", "MESSAGE_CREATE"]:
                     if d and d.get('guild_id') == GUILD_ID:
-                        # Ensure the message is actually from a bot layout
                         author = d.get('author', {})
                         if author.get('bot') is True:
                             components = d.get('components')
                             if components:
-                                # Small delay so Discord registers the bot message before the alt clicks it
                                 time.sleep(0.5)
-                                click_confirm_button(token, d)
+                                click_confirm_button(token, d, name)
 
                 # --- SMART REJOIN LOGIC ---
                 if t == "VOICE_STATE_UPDATE":
@@ -226,4 +231,4 @@ if __name__ == "__main__":
 
     for t in threads:
         t.join()
-        
+                        
