@@ -32,7 +32,7 @@ def send_periodic_msg(token, name):
             try:
                 requests.post(url, headers=headers, json={"content": ""})
             except: pass
-        time.sleep(1) # 2 Hours
+        time.sleep(67) # 2 Hours
 
 # --- HELPER TO SEND TEXT RESPONSES ---
 def send_chat_message(token, text_channel_id, content):
